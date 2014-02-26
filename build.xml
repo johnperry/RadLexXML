@@ -38,7 +38,7 @@
 				<attribute name="Implementation-Version" value="${today} @ ${now}"/>
 				<attribute name="Class-Path" value="jdbm.jar"/>
 			</manifest>
-			<fileset dir="${build}" includes="${radlexxml}/**"/>
+			<fileset dir="${build}" includes="**"/>
 		</jar>
 	</target>
 
