@@ -2,7 +2,7 @@
 *  Copyright 2012 by the Radiological Society of North America
 *
 *  This source software is released under the terms of the
-*  RSNA Public License (http://mirc.rsna.org/rsnapubliclicense)
+*  RSNA Public License (http://mirc.rsna.org/rsnapubliclicense.pdf)
 *----------------------------------------------------------------*/
 
 package org.rsna.util;
@@ -80,6 +80,7 @@ public class Cache {
 	 * Load all the files in a zip file into the cache, preserving the
 	 * directory structure of the zip file, and ignoring any .class files.
 	 * @param file the zip file to unpack.
+	 * @return the number of files loaded.
 	 */
 	public synchronized int load(File file) {
 		int count = 0;

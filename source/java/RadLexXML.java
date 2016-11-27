@@ -8,33 +8,40 @@ import java.io.*;
 import java.util.*;
 import javax.swing.*;
 import javax.swing.border.*;
+import javax.xml.parsers.SAXParser;
+import javax.xml.parsers.SAXParserFactory;
 import org.rsna.ui.ColorPane;
 import org.rsna.util.FileUtil;
 import org.rsna.util.XmlUtil;
 
 import org.w3c.dom.*;
+import org.xml.sax.Attributes;
+import org.xml.sax.SAXException;
+import org.xml.sax.helpers.DefaultHandler;
 
 /**
- * A program to walk the RadLex site, find all the terms
+ * A program to parse a RadLex OWL file, find all the terms
  * and write an XML file for use by TFS to build its RadLex
  * database. The database is used for finding terms in MIRCdocuments.
+ *
+ *The OWL file can be obtained from http://bioportal.bioontology.org/ontologies/RADLEX
+ *
+ *Note: With the recent OWL files, you must increase the entity expansion limit like this:
+ *<code>java -Djdk.xml.entityExpansionLimit=256000 -jar RadLexXML.jar</code>
  */
 public class RadLexXML extends JFrame {
 
 	static Color background = Color.getHSBColor(0.58f, 0.17f, 0.95f);
 
-    TextPanel		textPanel;
-    FooterPanel		footerPanel;
-    String			windowTitle = "RadLexXML - OWL Parser - version 5";
-    int 			width = 570;
-    int 			height = 700;
-    int				termCount = 0;
-	ColorPane		text = new ColorPane();
-	File			file = new File("radlex.xml");
-	int 			maxTerms = 0;
-	File			owlFile = null;
-	Document		doc = null;;
-	Element			root = null;
+    TextPanel textPanel;
+    FooterPanel footerPanel;
+    String windowTitle = "RadLexXML - OWL Parser (SAX) - version 7";
+	ColorPane text = new ColorPane();
+	File file = new File("radlex.xml");
+	File owlFile = null;
+	LinkedList<RadLexElement> terms;
+	LinkedList<OWLElement> stack;
+	OWLElement currentElement = null;
 
     public static void main(String args[]) {
         new RadLexXML();
@@ -61,8 +68,21 @@ public class RadLexXML extends JFrame {
 				public void windowClosing(WindowEvent evt) { System.exit(0); }
 			}
 		);
+		owlFile = getOWLFile();
 		(new ProcessingThread()).start();
-   }
+	}
+
+    private void centerFrame() {
+		int width = 570;
+		int height = 700;
+		Toolkit t = getToolkit();
+		Dimension scr = t.getScreenSize ();
+		setSize(width,height);
+		setLocation(
+			new Point(
+				(scr.width - width)/2,
+				(scr.height - height)/2));
+    }
 
 	private File getOWLFile() {
 		File here = new File(System.getProperty("user.dir"));
@@ -74,97 +94,6 @@ public class RadLexXML extends JFrame {
 		}
 		return null;
 	}
-
-	class ProcessingThread extends Thread {
-
-		public ProcessingThread() { super(); }
-
-		public void run() {
-			try {
-				owlFile = getOWLFile();
-				footerPanel.setMessage("Filtering the OWL file...");
-				File filteredFile = filter(owlFile);
-
-				//The output doc
-				footerPanel.setMessage("Creating the output document...");
-				doc = XmlUtil.getDocument();
-				root = doc.createElement("radlex");
-				doc.appendChild(root);
-
-				text.setText("");
-				long startTime = System.currentTimeMillis();
-				termCount = 0;
-
-				//The input doc
-				footerPanel.setMessage("Parsing the filtered OWL file...");
-				Document owl = XmlUtil.getDocument(filteredFile);
-
-
-				footerPanel.setMessage("Processing terms...");
-				Element owlRoot = owl.getDocumentElement();
-				Node child = owlRoot.getFirstChild();
-				while (child != null) {
-					if (child instanceof Element) {
-						Element el = (Element)child;
-						String id = el.getAttribute("ID");
-						if (id.startsWith("RID")) {
-							Term term = new Term(el);
-							if (term.isOK()) {
-								termCount++;
-								term.appendTo(root);
-							}
-						}
-					}
-					child = child.getNextSibling();
-				}
-				FileUtil.setText(file, XmlUtil.toPrettyString(doc));
-				text.print(Color.black, "\nCount = "+termCount+"\n");
-				text.print(Color.red, "Elapsed time: "+(System.currentTimeMillis()-startTime) + "\n\n");
-				footerPanel.setMessage("Done");
-			}
-			catch (Exception ex) {
-				footerPanel.setMessage("Exception: "+ex.getMessage());
-				StringWriter sw = new StringWriter();
-				ex.printStackTrace(new PrintWriter(sw));
-				text.println(Color.red, sw.toString());
-				text.print(Color.black, "");
-			}
-		}
-	}
-
-	private File filter(File inFile) throws Exception {
-		File outFile = new File(inFile.getName() + ".xml");
-		BufferedReader in = new BufferedReader(
-								new InputStreamReader(
-										new FileInputStream(inFile), FileUtil.utf8 ) );
-		BufferedWriter out = new BufferedWriter(
-								new OutputStreamWriter(
-										new FileOutputStream(outFile), FileUtil.utf8 ) );
-		String line;
-		while ( (line=in.readLine()) != null) {
-			if (!line.contains("rdf:resource=\"#RID")) {
-				line = line.replaceAll("rdfs:", "");
-				line = line.replaceAll("rdf:", "");
-				line = line.replaceAll("datatype=\"&xsd;string\"", "");
-				out.write(line);
-				out.newLine();
-			}
-		}
-		out.flush();
-		out.close();
-		in.close();
-		return outFile;
-	}
-
-    private void centerFrame() {
-		Toolkit t = getToolkit();
-		Dimension scr = t.getScreenSize ();
-		setSize(width,height);
-		setLocation(
-			new Point(
-				(scr.width - width)/2,
-				(scr.height - height)/2));
-    }
 
 	class FooterPanel extends JPanel {
 		public JLabel message;
@@ -198,58 +127,187 @@ public class RadLexXML extends JFrame {
         	add(jsp, BorderLayout.CENTER);
 		}
 	}
+	
+	class ProcessingThread extends Thread {
 
-	class Term {
-		Element el;
-		String id;
-		boolean status = true;
-		public LinkedList<String> names = new LinkedList<String>();
-		public LinkedList<String> altnames = new LinkedList<String>();
-		public LinkedList<String> synonyms = new LinkedList<String>();
+		public ProcessingThread() { super(); }
 
-		public Term(Element el) {
-			this.el = el;
-			id = el.getAttribute("ID");
-			setStatus();
-			add("Preferred_name", names);
-			add("Non-English_name", altnames);
-			add("Synonym", synonyms);
-		}
+		public void run() {
+			text.setText("");
+			try {
+				long startTime = System.currentTimeMillis();
+				terms = new LinkedList<RadLexElement>();
+				stack = new LinkedList<OWLElement>();
 
-		public boolean isOK() {
-			return status && (names.size() > 0);
-		}
+				//Parse the input OWL file
+				SAXParserFactory factory = SAXParserFactory.newInstance();
+				SAXParser saxParser = factory.newSAXParser();
+				Handler handler = new Handler();
+				footerPanel.setMessage("Parsing the OWL file...");
+				saxParser.parse(owlFile, handler);
+				
+				footerPanel.setMessage("Sorting the terms...");
+				RadLexElement[] rles = new RadLexElement[terms.size()];
+				rles = terms.toArray(rles);
+				Arrays.sort(rles);
 
-		private void setStatus() {
-			NodeList nl = el.getElementsByTagName("Term_Status");
-			for (int i=0; i<nl.getLength(); i++) {
-				status = !nl.item(i).getTextContent().toLowerCase().contains("retired");
+				//Create the output doc
+				footerPanel.setMessage("Creating the output document...");
+				Document doc = XmlUtil.getDocument();
+				Element root = doc.createElement("radlex");
+				doc.appendChild(root);
+				for (RadLexElement rle : rles) rle.appendTo(root);
+				
+				//Save the output doc
+				footerPanel.setMessage("Saving the output document...");
+				FileUtil.setText(file, XmlUtil.toPrettyString(doc));
+				
+				text.println(Color.black, "Elapsed time: "+(System.currentTimeMillis()-startTime) + " ms\n");
+				int termCount = 0;
+				int synCount = 0;
+				int nenCount = 0;
+				int obsCount = 0;
+				Node child = root.getFirstChild();
+				while (child != null) {
+					if (child instanceof Element) {
+						Element el = (Element)child;
+						String type = el.getAttribute("type");
+						if (type.equals("SYN")) synCount++;
+						else if (type.equals("NEN")) nenCount++;
+						else if (type.equals("OBS")) obsCount++;
+						else termCount++;
+					}
+					child = child.getNextSibling();
+				}
+				text.println(Color.black, "List size                   = "+String.format("%7d",terms.size()));
+				text.println(Color.black, "Number of RadLex terms      = "+String.format("%7d",termCount));
+				text.println(Color.black, "Number of synonyms          = "+String.format("%7d",synCount));
+				text.println(Color.black, "Number of non-English terms = "+String.format("%7d",nenCount));
+				text.println(Color.black, "Number of obsolete terms    = "+String.format("%7d",obsCount));
+				footerPanel.setMessage("Done");
+			}
+			catch (Exception ex) {
+				footerPanel.setMessage("Exception: "+ex.getMessage());
+				StringWriter sw = new StringWriter();
+				ex.printStackTrace(new PrintWriter(sw));
+				text.println(Color.red, sw.toString());
+				text.print(Color.black, "");
 			}
 		}
-
-		private void add(String tagName, LinkedList<String> list) {
-			NodeList nl = el.getElementsByTagName(tagName);
-			for (int i=0; i<nl.getLength(); i++) {
-				String name = nl.item(i).getTextContent().trim();
-				if (!name.equals("")) list.add(name);
+	}
+	
+	class Handler extends DefaultHandler {
+		public Handler() {
+			super();
+		}
+		public void startElement(String uri, String localName, String qName, Attributes attrs) throws SAXException {
+			if (currentElement != null) {
+				stack.push(currentElement);
+			}				
+			currentElement = getOWLElement(currentElement, qName, attrs);
+		}
+		public void characters(char[] ch, int start, int length) throws SAXException {
+			if (currentElement != null) {
+				currentElement.append(new String(ch, start, length));
 			}
 		}
+		public void endElement(String uri, String localName, String qName) throws SAXException {
+			if ((currentElement != null) && (currentElement.parent != null)) {
+				if ( !(currentElement instanceof RadLexElement) ) {
+					if (currentElement.parent instanceof RadLexElement) {
+						currentElement.parent.add(currentElement.qName, currentElement.textContent);
+					}
+				}
+				else if (((RadLexElement)currentElement).hasContent()) {
+					terms.add( (RadLexElement)currentElement );
+				}
+			}
+			if (stack.size() > 0) currentElement = stack.pop();
+		}
+	}
 
+	public OWLElement getOWLElement(OWLElement parent, String qName, Attributes attrs) {
+		int index = attrs.getIndex("rdf:ID");
+		if (index >= 0) {
+			String id = attrs.getValue(index);
+			if (id.startsWith("RID")) {
+				if (qName.endsWith("_metaclass") || qName.endsWith("Metaclass")) {
+					return new RadLexElement(parent, qName, id);
+				}
+			}
+		}
+		return new OWLElement(parent, qName);
+	}
+
+	class OWLElement {
+		public OWLElement parent = null;
+		public String qName = "";
+		public String textContent = "";
+		public OWLElement(OWLElement parent, String qName) {
+			this.parent = parent;
+			this.qName = qName;
+		}
+		public void append(String text) {
+			textContent += text;
+		}
+		public void add(String qName, String value) { }
+	}
+	
+	class RadLexElement extends OWLElement implements Comparable<RadLexElement> {
+		public String id;
+		public int idInt = -1;
+		public LinkedList<String> preferredNames;
+		public LinkedList<String> obsoleteNames;
+		public LinkedList<String> synonyms;
+		public LinkedList<String> nonEnglishNames;
+		public RadLexElement(OWLElement parent, String qName, String id) {
+			super(parent, qName);
+			this.id = id;
+			preferredNames = new LinkedList<String>();
+			obsoleteNames = new LinkedList<String>();
+			synonyms = new LinkedList<String>();
+			nonEnglishNames = new LinkedList<String>();
+			try { idInt = Integer.parseInt(id.substring(3)); }
+			catch (Exception ex) { }
+		}
+		public boolean hasContent() {
+			return (preferredNames.size() > 0)
+					|| (obsoleteNames.size() > 0)
+					  || (synonyms.size() > 0)
+					    || (nonEnglishNames.size() > 0);
+		}
+		public void add(String qName, String value) { 
+			String qNameLC = qName.toLowerCase();
+			if (qNameLC.equals("preferred_name")) {
+				preferredNames.add(value.trim());
+			}
+			else if (qNameLC.equals("non_english_name")) {
+				nonEnglishNames.add(value.trim());
+			}
+			else if (qNameLC.equals("synonym")) {
+				synonyms.add(value.trim());
+			}
+			else if (qNameLC.equals("preferred_name_for_obsolete")) {
+				obsoleteNames.add(value.trim());
+			}				
+		}
+		public int compareTo(RadLexElement e) {
+			return (idInt > e.idInt) ? 1 : ((idInt < e.idInt) ? -1 : 0);
+		}
 		public void appendTo(Element parent) {
-			for (String s : names) {
+			for (String s : preferredNames) {
 				appendTo(parent, s, "");
-				//text.print(Color.black, termCount + ": " + id + ": "+ s + "\n");
 			}
-			for (String s : altnames) {
+			for (String s : nonEnglishNames) {
 				appendTo(parent, s, "NEN");
-				//text.print(Color.green, "              NEN: " + s + "\n");
 			}
 			for (String s : synonyms) {
 				appendTo(parent, s, "SYN");
-				//text.print(Color.blue, "              SYN: " + s + "\n");
+			}
+			for (String s : obsoleteNames) {
+				appendTo(parent, s, "OBS");
 			}
 		}
-
 		private void appendTo(Element parent, String name, String type) {
 			Element child = parent.getOwnerDocument().createElement("term");
 			child.setAttribute("id", id);
@@ -258,5 +316,4 @@ public class RadLexXML extends JFrame {
 			parent.appendChild(child);
 		}
 	}
-
 }

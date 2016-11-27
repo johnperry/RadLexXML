@@ -1,8 +1,8 @@
 /*---------------------------------------------------------------
-*  Copyright 2005 by the Radiological Society of North America
+*  Copyright 2015 by the Radiological Society of North America
 *
 *  This source software is released under the terms of the
-*  RSNA Public License (http://mirc.rsna.org/rsnapubliclicense)
+*  RSNA Public License (http://mirc.rsna.org/rsnapubliclicense.pdf)
 *----------------------------------------------------------------*/
 
 package org.rsna.util;
@@ -36,8 +36,8 @@ import java.util.zip.*;
  */
 public class FileUtil {
 
-	public static Charset latin1 = Charset.forName("ISO-8859-1");
-	public static Charset utf8 = Charset.forName("UTF-8");
+	public static final Charset latin1 = Charset.forName("ISO-8859-1");
+	public static final Charset utf8 = Charset.forName("UTF-8");
 
 	/**
 	 * Read a file completely and return a byte array containing the data.
@@ -92,6 +92,7 @@ public class FileUtil {
 	/**
 	 * Read the first bytes of an InputStream and leave the stream open.
 	 * @param stream the InputStream to read.
+	 * @param length the maximum number of bytes to read.
 	 * @return the bytes, or an empty byte array if an error occurred.
 	 * Note: the returned byte array may be shorter than the requested
 	 * length if the input stream ends before the length has been reached.
@@ -141,26 +142,6 @@ public class FileUtil {
 	}
 
 	/**
-	 * Read an InputStream completely, using the specified encoding.
-	 * @param stream the InputStream to read.
-	 * @param charset the character set to use for the encoding of the file.
-	 * @return the text, or an empty string if an error occurred.
-	 */
-	public static String getText(InputStream stream, Charset charset) {
-		BufferedReader br = null;
-		try {
-			br = new BufferedReader( new InputStreamReader(stream, charset) );
-			StringWriter sw = new StringWriter();
-			int n;
-			char[] cbuf = new char[1024];
-			while ((n=br.read(cbuf, 0, cbuf.length)) != -1) sw.write(cbuf,0,n);
-			br.close();
-			return sw.toString();
-		}
-		catch (Exception e) { close(br); return ""; }
-	}
-
-	/**
 	 * Read a text file completely, using the UTF-8 encoding.
 	 * @param file the file to read.
 	 * @return the text of the file, or an empty string if an error occurred.
@@ -204,6 +185,52 @@ public class FileUtil {
 			return sw.toString();
 		}
 		catch (Exception e) { close(br); return ""; }
+	}
+
+	/**
+	 * Read an InputStream completely, using the specified encoding and closing the
+	 * input stream.
+	 * @param stream the InputStream to read.
+	 * @param charset the character set to use for the encoding of the input stream.
+	 * @return the text, or an empty string if an error occurred.
+	 */
+	public static String getText(InputStream stream, Charset charset) {
+		try { return getTextOrException(stream, charset, true); }
+		catch (Exception e) { return ""; }
+	}
+
+	/**
+	 * Read an InputStream completely, using the specified encoding.
+	 * @param stream the InputStream to read.
+	 * @param charset the character set to use for the encoding of the input stream.
+	 * @param close true to close the input stream; false to leave it open.
+	 * @return the text, or an empty string if an error occurred.
+	 */
+	public static String getText(InputStream stream, Charset charset, boolean close) {
+		try { return getTextOrException(stream, charset, close); }
+		catch (Exception e) { return ""; }
+	}
+
+	/**
+	 * Read an InputStream completely, using the specified encoding.
+	 * @param stream the InputStream to read.
+	 * @param charset the character set to use for the encoding of the input stream.
+	 * @param close true to close the input stream; false to leave it open.
+	 * @return the text, or an empty string if an error occurred.
+	 * @throws Exception on any error.
+	 */
+	public static String getTextOrException(InputStream stream, Charset charset, boolean close) throws Exception {
+		BufferedReader br = null;
+		try {
+			br = new BufferedReader( new InputStreamReader(stream, charset) );
+			StringWriter sw = new StringWriter();
+			int n;
+			char[] cbuf = new char[1024];
+			while ((n=br.read(cbuf, 0, cbuf.length)) != -1) sw.write(cbuf,0,n);
+			if (close) br.close();
+			return sw.toString();
+		}
+		catch (Exception e) { close(br); throw(e); }
 	}
 
 	/**
@@ -336,7 +363,11 @@ public class FileUtil {
 	 * @return true if the operation succeeded completely; false otherwise.
 	 */
 	public static synchronized boolean copy(File inFile, File outFile) {
-		try { return copy(new FileInputStream(inFile), new FileOutputStream(outFile), -1); }
+		try { 
+			return copy(new FileInputStream(inFile), 
+						new BufferedOutputStream( new FileOutputStream(outFile) ),
+						-1);
+		}
 		catch (Exception e) { return false; }
 	}
 
@@ -350,16 +381,17 @@ public class FileUtil {
 	 * @param contentLength the maximum number of bytes to copy, or -1 to read the InputStream fully.
 	 * @return true if the operation succeeded completely; false otherwise.
 	 */
-	public static synchronized boolean copy(InputStream in, OutputStream out, int contentLength) {
-		int length = (contentLength > 0) ? contentLength : Integer.MAX_VALUE;
+	public static synchronized boolean copy(InputStream in, OutputStream out, long contentLength) {
+		long length = (contentLength > 0) ? contentLength : Long.MAX_VALUE;
 		boolean result = true;
-		int bytesRead = 0;
+		long bytesRead = 0;
 		try {
 			in = new BufferedInputStream(in);
 			byte[] b = new byte[4096];
 			int n;
+
 			while ( (bytesRead < length) &&
-						((n = in.read(b, 0, Math.min(b.length, length-bytesRead))) != -1) ) {
+						((n = in.read(b, 0, (int)Math.min(b.length, length-bytesRead))) != -1) ) {
 				out.write(b, 0, n);
 				bytesRead += n;
 			}
@@ -527,6 +559,23 @@ public class FileUtil {
 			catch (Exception ex) { }
 		}
 		return file;
+	}
+
+	/**
+	 * Get the first file whose name matches starting and ending strings.
+	 * @param dir the directory to search.
+	 * @param nameStart the string to match against the start of the name.
+	 * @param nameEnd the string to match against the end of the name.
+	 * @return the first matching file, or null if no matching file is found in the directory.
+	 */
+	public static File getFile(File dir, String nameStart, String nameEnd) {
+		for (File file : dir.listFiles()) {
+			String name = file.getName();
+			if (name.startsWith(nameStart) && name.endsWith(nameEnd)) {
+				return file;
+			}
+		}
+		return null;
 	}
 
 	/**
@@ -823,13 +872,20 @@ public class FileUtil {
 	 * @throws Exception if any error occurs.
 	 */
 	public static void streamFile(File file, OutputStream out) throws Exception {
-		FileInputStream fis = new FileInputStream(file);
-		byte[] bbuf = new byte[1024];
+		BufferedInputStream bis = null;
+		BufferedOutputStream bos = null;
+		byte[] buffer = new byte[4096];
 		int n;
-		while ((n=fis.read(bbuf,0,bbuf.length)) > 0) out.write(bbuf,0,n);
-		out.flush();
-		out.close();
-		fis.close();
+		try {
+			bis = new BufferedInputStream( new FileInputStream(file) );
+			bos = new BufferedOutputStream(out);
+			while ((n=bis.read(buffer,0,buffer.length)) > 0) bos.write(buffer,0,n);
+			bos.flush();
+		}
+		finally {
+			close(bis);
+			close(bos);
+		}
 	}
 
 	/**
@@ -841,21 +897,68 @@ public class FileUtil {
 	 */
 	public static void zipStreamFile(File file, OutputStream out) throws Exception {
 		FileInputStream fin;
-		ZipOutputStream zout = new ZipOutputStream(out);
+		ZipOutputStream zout = null;
+		String entryname;
+		int bytesread;
 		ZipEntry ze;
 		byte[] buffer = new byte[10000];
-		int bytesread;
-		String entryname = file.getName();
-		ze = new ZipEntry(entryname);
-		if (file.exists()) {
-			fin = new FileInputStream(file);
-			zout.putNextEntry(ze);
-			while ((bytesread = fin.read(buffer)) > 0) zout.write(buffer,0,bytesread);
-			fin.close();
+		try {
+			zout = new ZipOutputStream(out);
+			entryname = file.getName();
+			ze = new ZipEntry(entryname);
+			if (file.exists()) {
+				fin = new FileInputStream(file);
+				zout.putNextEntry(ze);
+				while ((bytesread = fin.read(buffer)) > 0) zout.write(buffer,0,bytesread);
+				fin.close();
+			}
 		}
-		zout.closeEntry();
-		zout.flush();
-		zout.close();
+		finally {
+			if (zout != null) {
+				try { zout.closeEntry(); } catch (Exception ex) { }
+				try { zout.flush(); } catch (Exception ex) { }
+				try { zout.close(); } catch (Exception ex) { }
+
+			}
+		}
+	}
+
+	/**
+	 * Send an array of files to an output stream, 
+	 * zipping it during the transmission and
+	 * closing the output stream when done.
+	 * @param files the files to stream.
+	 * @param out the output stream.
+	 * @throws Exception if any error occurs.
+	 */
+	public static void zipStreamFiles(File[] files, OutputStream out) throws Exception {
+		FileInputStream fin;
+		ZipOutputStream zout = null;
+		String entryname;
+		int bytesread;
+		ZipEntry ze;
+		byte[] buffer = new byte[10000];
+		try {
+			zout = new ZipOutputStream(out);
+			for (File file : files) {
+				entryname = file.getName();
+				ze = new ZipEntry(entryname);
+				if (file.exists()) {
+					fin = new FileInputStream(file);
+					zout.putNextEntry(ze);
+					while ((bytesread = fin.read(buffer)) > 0) zout.write(buffer,0,bytesread);
+					fin.close();
+				}
+			}
+		}
+		finally {
+			if (zout != null) {
+				try { zout.closeEntry(); } catch (Exception ex) { }
+				try { zout.flush(); } catch (Exception ex) { }
+				try { zout.close(); } catch (Exception ex) { }
+
+			}
+		}
 	}
 
 	/**
