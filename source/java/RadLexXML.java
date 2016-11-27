@@ -42,6 +42,7 @@ public class RadLexXML extends JFrame {
 	LinkedList<RadLexElement> terms;
 	LinkedList<OWLElement> stack;
 	OWLElement currentElement = null;
+	HashSet<String> qNames = new HashSet<String>();
 
     public static void main(String args[]) {
         new RadLexXML();
@@ -138,6 +139,7 @@ public class RadLexXML extends JFrame {
 				long startTime = System.currentTimeMillis();
 				terms = new LinkedList<RadLexElement>();
 				stack = new LinkedList<OWLElement>();
+				qNames = new HashSet<String>();
 
 				//Parse the input OWL file
 				SAXParserFactory factory = SAXParserFactory.newInstance();
@@ -184,6 +186,15 @@ public class RadLexXML extends JFrame {
 				text.println(Color.black, "Number of synonyms          = "+String.format("%7d",synCount));
 				text.println(Color.black, "Number of non-English terms = "+String.format("%7d",nenCount));
 				text.println(Color.black, "Number of obsolete terms    = "+String.format("%7d",obsCount));
+				
+				String[] qNamesArray = new String[qNames.size()];
+				qNamesArray = qNames.toArray(qNamesArray);
+				Arrays.sort(qNamesArray);
+				text.println(Color.black, "\nElements with rdf:ID attributes found in the OWL file:");
+				for (String qName : qNamesArray) {
+					text.println(Color.black, qName);
+				}
+				
 				footerPanel.setMessage("Done");
 			}
 			catch (Exception ex) {
@@ -231,6 +242,7 @@ public class RadLexXML extends JFrame {
 		if (index >= 0) {
 			String id = attrs.getValue(index);
 			if (id.startsWith("RID")) {
+				qNames.add(qName);
 				if (qName.endsWith("_metaclass") || qName.endsWith("Metaclass")) {
 					return new RadLexElement(parent, qName, id);
 				}
