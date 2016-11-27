@@ -53,6 +53,7 @@ public class RadLexXML extends JFrame {
     }
 
     private void initComponents() {
+		System.setProperty("jdk.xml.entityExpansionLimit", "256000");
 		setTitle(windowTitle);
 		JPanel main = new JPanel();
 		main.setLayout(new BorderLayout());
