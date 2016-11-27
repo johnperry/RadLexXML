@@ -6,6 +6,6 @@ To use this program, get the RadLex OWL file from the bioontology site for RadLe
 <p>
 Run this program in a command window with this command:
 <p>
-<tt>      java -Djdk.xml.entityExpansionLimit=256000 -jar RadLexXML.jar</tt>
+      java -Djdk.xml.entityExpansionLimit=256000 -jar RadLexXML.jar</tt>
 <p>
 Note: there are so many entities in the OWL file that the SAX parser hits the 64K default limit; that's why the -D parameter is required.
