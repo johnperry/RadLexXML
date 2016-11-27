@@ -9,4 +9,4 @@ the limit to 256000 to get around the problem. This is the equivalent of running
 <p>
 &nbsp;&nbsp;&nbsp;&nbsp;java -Djdk.xml.entityExpansionLimit=256000 -jar RadLexXML.jar
 <p>
-If the OWL file grows over time to exceed the limit built into the program, you will have to change the first line in the initComponents method in RadLexXML.java to specify a new limit, since the code will overwrite anything you specify on the command line.
+If the OWL file grows over time to exceed the limit built into the program, you will have to change the first line in the initComponents method in RadLexXML.java to specify a new limit. Alternatively, you can remove that line and always run the program from the command line, specifying whatever limit you require.
