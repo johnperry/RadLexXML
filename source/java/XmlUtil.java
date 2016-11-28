@@ -485,7 +485,7 @@ public class XmlUtil {
 		switch (node.getNodeType()) {
 
 			case Node.DOCUMENT_NODE:
-				//sb.append(margin + lab +"?xml version=\"1.0\" encoding=\"UTF-8\"?" + rab + nl);
+				sb.append(margin + lab +"?xml version=\"1.0\" encoding=\"UTF-8\"?" + rab + nl);
 				Node root = ((Document)node).getDocumentElement();
 				renderNode(sb, root, margin, indent, lab, rab, nl);
 				break;
