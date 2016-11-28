@@ -23,8 +23,8 @@
 		<mkdir dir="${build}"/>
 		<mkdir dir="${products}"/>
 	</target>
-
-	<target name="radlexxml" depends="init">
+	
+	<target name="compile" depends="init">
 		<javac destdir="${build}" optimize="on"
 			includeantruntime="false"
 			debug="true" debuglevel="lines,vars,source">
@@ -32,16 +32,28 @@
 			<compilerarg value="-Xlint:unchecked"/>
 			<compilerarg value="-Xlint:deprecation"/>
 		</javac>
+	</target>
+
+	<target name="radlexxml" depends="compile">
 		<jar jarfile="${products}/${name}.jar">
 			<manifest>
 				<attribute name="Main-Class" value="org.rsna.radlexxml.${name}"/>
 				<attribute name="Implementation-Version" value="${today} @ ${now}"/>
-				<attribute name="Class-Path" value="jdbm.jar"/>
 			</manifest>
-			<fileset dir="${build}" includes="**"/>
+			<fileset dir="${build}" excludes="org/rsna/radlexxml/RadLexXMLCompareTool*.*"/>
 		</jar>
 	</target>
 
-	<target name="all" depends="clean, radlexxml"/>
+	<target name="radlexxmlcompare" depends="compile">
+		<jar jarfile="${products}/${name}CompareTool.jar">
+			<manifest>
+				<attribute name="Main-Class" value="org.rsna.radlexxml.${name}CompareTool"/>
+				<attribute name="Implementation-Version" value="${today} @ ${now}"/>
+			</manifest>
+			<fileset dir="${build}" excludes="org/rsna/radlexxml/RadLexXML.* org/rsna/radlexxml/RadLexXML$*.*"/>
+		</jar>
+	</target>
+
+	<target name="all" depends="clean, radlexxml, radlexxmlcompare"/>
 
 </project>
