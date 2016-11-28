@@ -192,7 +192,7 @@ public class RadLexXML extends JFrame {
 				qNamesArray = qNames.keySet().toArray(qNamesArray);
 				Arrays.sort(qNamesArray);
 				int total = 0;
-				text.println(Color.black, "\nElements with rdf:ID attributes found in the OWL file:");
+				text.println(Color.black, "\nCandidate term elements:");
 				for (String qName : qNamesArray) {
 					int count = qNames.get(qName);
 					total += count;
@@ -285,7 +285,9 @@ public class RadLexXML extends JFrame {
 			obsoleteNames = new LinkedList<String>();
 			synonyms = new LinkedList<String>();
 			try { idInt = Integer.parseInt(id.substring(3)); }
-			catch (Exception ex) { }
+			catch (Exception ex) { 
+				text.println(Color.red, "Non-parsing rdf:ID: "+id);
+			}
 		}
 		public boolean hasContent() {
 			return (preferredNames.size() > 0)
