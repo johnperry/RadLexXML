@@ -50,6 +50,8 @@ public class RadLexXML extends JFrame {
 
     public RadLexXML() {
     	initComponents();
+		owlFile = getOWLFile();
+		(new ProcessingThread()).start();
     }
 
     private void initComponents() {
@@ -70,8 +72,6 @@ public class RadLexXML extends JFrame {
 				public void windowClosing(WindowEvent evt) { System.exit(0); }
 			}
 		);
-		owlFile = getOWLFile();
-		(new ProcessingThread()).start();
 	}
 
     private void centerFrame() {
