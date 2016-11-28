@@ -165,7 +165,6 @@ public class RadLexXML extends JFrame {
 				footerPanel.setMessage("Saving the output document...");
 				FileUtil.setText(file, XmlUtil.toPrettyString(doc));
 				
-				text.println(Color.black, "Elapsed time: "+(System.currentTimeMillis()-startTime) + " ms\n");
 				int totalCount = 0;
 				int radlexCount = 0;
 				int synCount = 0;
@@ -182,11 +181,12 @@ public class RadLexXML extends JFrame {
 					}
 					child = child.getNextSibling();
 				}
-				text.println(Color.black, "Qualifying elements = "+String.format("%7d",terms.size()));
-				text.println(Color.black, "RadLex terms        = "+String.format("%7d",radlexCount));
-				text.println(Color.black, "Synonyms            = "+String.format("%7d",synCount));
-				text.println(Color.black, "Obsolete terms      = "+String.format("%7d",obsCount));
-				text.println(Color.black, "Total               = "+String.format("%7d",totalCount));
+				text.println(Color.black, "");
+				text.println(Color.black, String.format("%7d Qualifying elements\n",terms.size()));
+				text.println(Color.black, String.format("%7d RadLex terms",radlexCount));
+				text.println(Color.black, String.format("%7d Synonyms",synCount));
+				text.println(Color.black, String.format("%7d Obsolete terms",obsCount));
+				text.println(Color.black, String.format("%7d Total",totalCount));
 				
 				String[] qNamesArray = new String[qNames.size()];
 				qNamesArray = qNames.keySet().toArray(qNamesArray);
@@ -196,11 +196,11 @@ public class RadLexXML extends JFrame {
 				for (String qName : qNamesArray) {
 					int count = qNames.get(qName);
 					total += count;
-					text.println(Color.black, String.format("%6d %s",count,qName));
+					text.println(Color.black, String.format("%7d %s",count,qName));
 				}
-				text.println(Color.black, String.format("------\n%6d total elements",total));
+				text.println(Color.black, String.format("------\n%7d total elements",total));
 				
-				footerPanel.setMessage("Done");
+				footerPanel.setMessage("Done: Elapsed time: "+(System.currentTimeMillis()-startTime) + " ms");
 			}
 			catch (Exception ex) {
 				footerPanel.setMessage("Exception: "+ex.getMessage());
@@ -237,6 +237,7 @@ public class RadLexXML extends JFrame {
 				else if (((RadLexElement)currentElement).hasContent()) {
 					terms.add( (RadLexElement)currentElement );
 				}
+				else text.println(Color.red, "Non-qualifying element: "+((RadLexElement)currentElement).id);
 			}
 			if (stack.size() > 0) currentElement = stack.pop();
 		}
