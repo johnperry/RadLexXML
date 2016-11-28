@@ -42,7 +42,7 @@ public class RadLexXML extends JFrame {
 	LinkedList<RadLexElement> terms;
 	LinkedList<OWLElement> stack;
 	OWLElement currentElement = null;
-	HashSet<String> qNames = new HashSet<String>();
+	Hashtable<String,Integer> qNames = null;
 
     public static void main(String args[]) {
         new RadLexXML();
@@ -140,7 +140,7 @@ public class RadLexXML extends JFrame {
 				long startTime = System.currentTimeMillis();
 				terms = new LinkedList<RadLexElement>();
 				stack = new LinkedList<OWLElement>();
-				qNames = new HashSet<String>();
+				qNames = new Hashtable<String,Integer>();
 
 				//Parse the input OWL file
 				SAXParserFactory factory = SAXParserFactory.newInstance();
@@ -166,9 +166,9 @@ public class RadLexXML extends JFrame {
 				FileUtil.setText(file, XmlUtil.toPrettyString(doc));
 				
 				text.println(Color.black, "Elapsed time: "+(System.currentTimeMillis()-startTime) + " ms\n");
-				int termCount = 0;
+				int totalCount = 0;
+				int radlexCount = 0;
 				int synCount = 0;
-				int nenCount = 0;
 				int obsCount = 0;
 				Node child = root.getFirstChild();
 				while (child != null) {
@@ -176,25 +176,29 @@ public class RadLexXML extends JFrame {
 						Element el = (Element)child;
 						String type = el.getAttribute("type");
 						if (type.equals("SYN")) synCount++;
-						else if (type.equals("NEN")) nenCount++;
 						else if (type.equals("OBS")) obsCount++;
-						else termCount++;
+						else radlexCount++;
+						totalCount++;
 					}
 					child = child.getNextSibling();
 				}
-				text.println(Color.black, "List size                   = "+String.format("%7d",terms.size()));
-				text.println(Color.black, "Number of RadLex terms      = "+String.format("%7d",termCount));
-				text.println(Color.black, "Number of synonyms          = "+String.format("%7d",synCount));
-				text.println(Color.black, "Number of non-English terms = "+String.format("%7d",nenCount));
-				text.println(Color.black, "Number of obsolete terms    = "+String.format("%7d",obsCount));
+				text.println(Color.black, "Qualifying elements = "+String.format("%7d",terms.size()));
+				text.println(Color.black, "RadLex terms        = "+String.format("%7d",radlexCount));
+				text.println(Color.black, "Synonyms            = "+String.format("%7d",synCount));
+				text.println(Color.black, "Obsolete terms      = "+String.format("%7d",obsCount));
+				text.println(Color.black, "Total               = "+String.format("%7d",totalCount));
 				
 				String[] qNamesArray = new String[qNames.size()];
-				qNamesArray = qNames.toArray(qNamesArray);
+				qNamesArray = qNames.keySet().toArray(qNamesArray);
 				Arrays.sort(qNamesArray);
+				int total = 0;
 				text.println(Color.black, "\nElements with rdf:ID attributes found in the OWL file:");
 				for (String qName : qNamesArray) {
-					text.println(Color.black, qName);
+					int count = qNames.get(qName);
+					total += count;
+					text.println(Color.black, String.format("%6d %s",count,qName));
 				}
+				text.println(Color.black, String.format("------\n%6d total elements",total));
 				
 				footerPanel.setMessage("Done");
 			}
@@ -243,10 +247,11 @@ public class RadLexXML extends JFrame {
 		if (index >= 0) {
 			String id = attrs.getValue(index);
 			if (id.startsWith("RID")) {
-				qNames.add(qName);
-				if (qName.endsWith("_metaclass") || qName.endsWith("Metaclass")) {
-					return new RadLexElement(parent, qName, id);
-				}
+				Integer count = qNames.get(qName);
+				if (count == null) count = new Integer(1);
+				else count = new Integer(count.intValue() + 1);
+				qNames.put(qName, count);
+				return new RadLexElement(parent, qName, id);
 			}
 		}
 		return new OWLElement(parent, qName);
@@ -272,30 +277,24 @@ public class RadLexXML extends JFrame {
 		public LinkedList<String> preferredNames;
 		public LinkedList<String> obsoleteNames;
 		public LinkedList<String> synonyms;
-		public LinkedList<String> nonEnglishNames;
 		public RadLexElement(OWLElement parent, String qName, String id) {
 			super(parent, qName);
 			this.id = id;
 			preferredNames = new LinkedList<String>();
 			obsoleteNames = new LinkedList<String>();
 			synonyms = new LinkedList<String>();
-			nonEnglishNames = new LinkedList<String>();
 			try { idInt = Integer.parseInt(id.substring(3)); }
 			catch (Exception ex) { }
 		}
 		public boolean hasContent() {
 			return (preferredNames.size() > 0)
 					|| (obsoleteNames.size() > 0)
-					  || (synonyms.size() > 0)
-					    || (nonEnglishNames.size() > 0);
+					  || (synonyms.size() > 0);
 		}
 		public void add(String qName, String value) { 
 			String qNameLC = qName.toLowerCase();
 			if (qNameLC.equals("preferred_name")) {
 				preferredNames.add(value.trim());
-			}
-			else if (qNameLC.equals("non_english_name")) {
-				nonEnglishNames.add(value.trim());
 			}
 			else if (qNameLC.equals("synonym")) {
 				synonyms.add(value.trim());
@@ -305,14 +304,11 @@ public class RadLexXML extends JFrame {
 			}				
 		}
 		public int compareTo(RadLexElement e) {
-			return (idInt > e.idInt) ? 1 : ((idInt < e.idInt) ? -1 : 0);
+			return Integer.compare(idInt, e.idInt);
 		}
 		public void appendTo(Element parent) {
 			for (String s : preferredNames) {
 				appendTo(parent, s, "");
-			}
-			for (String s : nonEnglishNames) {
-				appendTo(parent, s, "NEN");
 			}
 			for (String s : synonyms) {
 				appendTo(parent, s, "SYN");
