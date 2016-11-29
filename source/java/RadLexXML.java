@@ -198,7 +198,7 @@ public class RadLexXML extends JFrame {
 					total += count;
 					text.println(Color.black, String.format("%7d %s",count,qName));
 				}
-				text.println(Color.black, String.format("------\n%7d total elements",total));
+				text.println(Color.black, String.format("-------\n%7d total elements",total));
 				
 				footerPanel.setMessage("Done: Elapsed time: "+(System.currentTimeMillis()-startTime) + " ms");
 			}
